@@ -1,0 +1,5 @@
+---
+- name: restart mariadb
+  containers.podman.podman_container:
+    name: mariadb
+    state: restarted

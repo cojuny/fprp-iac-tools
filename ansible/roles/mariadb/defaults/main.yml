@@ -1,0 +1,1 @@
+mariadb_image: "docker.io/library/mariadb:11.8.6-noble"
