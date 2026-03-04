@@ -3,3 +3,8 @@
   hosts: mariadb
   roles:
     - mariadb
+
+- name: Configure Nexus Server
+  hosts: nexus
+  roles:
+    - nexus

@@ -1,0 +1,4 @@
+nexus_image: "docker.io/sonatype/nexus3:3.89.1-alpine"
+nexus_http_port: 8081
+nexus_data_dir: "/opt/nexus-data"
+nexus_java_opts: "-Xms1200m -Xmx1200m -XX:MaxDirectMemorySize=2g -Djava.util.prefs.userRoot=${NEXUS_DATA}/javaprefs"

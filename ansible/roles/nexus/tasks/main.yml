@@ -1,0 +1,69 @@
+---
+- name: Install Podman
+  become: true
+  apt:
+    name: podman
+    state: present
+    update_cache: true
+
+- name: Enable linger for user systemd (rootless containers survive reboot)
+  become: true
+  command: "loginctl enable-linger {{ ansible_user }}"
+
+# Create directory for volume
+- name: Create Nexus data directory
+  become: true
+  file:
+    path: "{{ nexus_data_dir }}"
+    state: directory
+    mode: "0775"
+
+# Allow the normal user to access it
+- name: Set directory ownership to nexus user
+  become: true
+  file:
+    path: "{{ nexus_data_dir }}"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0775"
+
+# Fix UID mapping for rootless container
+- name: Adjust ownership inside podman namespace for Nexus UID 200
+  command: podman unshare chown -R 200:200 "{{ nexus_data_dir }}"
+
+- name: Pull Nexus image
+  containers.podman.podman_image:
+    name: "{{ nexus_image }}"
+    state: present
+
+- name: Run Nexus container
+  containers.podman.podman_container:
+    name: nexus
+    image: "{{ nexus_image }}"
+    state: started
+    restart_policy: always
+    publish:
+      - "{{ nexus_http_port }}:8081"
+    volume:
+      - "{{ nexus_data_dir }}:/nexus-data"
+    env: >-
+      {{
+        (nexus_java_opts is defined)
+        | ternary({'INSTALL4J_ADD_VM_PARAMS': nexus_java_opts}, {})
+      }}
+# Generate systemd service
+- name: Generate user systemd unit
+  containers.podman.podman_generate_systemd:
+    name: nexus
+    dest: "{{ ansible_env.HOME }}/.config/systemd/user"
+    restart_policy: always
+    new: true
+
+- name: Reload user systemd
+  command: systemctl --user daemon-reload
+
+- name: Enable Nexus service
+  command: systemctl --user enable container-nexus.service
+
+- name: Start Nexus service
+  command: systemctl --user start container-nexus.service
