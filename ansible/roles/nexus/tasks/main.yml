@@ -1,69 +1,193 @@
 ---
-- name: Install Podman
+# --------------------------------------------------
+# Install dependencies
+# --------------------------------------------------
+- name: Install required packages
   become: true
   apt:
-    name: podman
+    name:
+      - openjdk-17-jdk
+      - wget
+      - tar
     state: present
     update_cache: true
 
-- name: Enable linger for user systemd (rootless containers survive reboot)
+# --------------------------------------------------
+# Create nexus user
+# --------------------------------------------------
+- name: Create nexus group
   become: true
-  command: "loginctl enable-linger {{ ansible_user }}"
+  group:
+    name: "{{ nexus_user }}"
+    gid: "{{ nexus_uid }}"
+    state: present
 
-# Create directory for volume
+- name: Create nexus user
+  become: true
+  user:
+    name: "{{ nexus_user }}"
+    uid: "{{ nexus_uid }}"
+    group: "{{ nexus_user }}"
+    shell: /usr/sbin/nologin
+    create_home: false
+
+# --------------------------------------------------
+# Stop Nexus if running
+# --------------------------------------------------
+- name: Stop Nexus
+  become: true
+  systemd:
+    name: nexus
+    state: stopped
+  ignore_errors: true
+
+# --------------------------------------------------
+# Handle data directory
+# --------------------------------------------------
+- name: Remove Nexus data (fresh install)
+  become: true
+  file:
+    path: "{{ nexus_data_dir }}/nexus3"
+    state: absent
+  when: nexus_state == "fresh"
+
 - name: Create Nexus data directory
   become: true
   file:
-    path: "{{ nexus_data_dir }}"
+    path: "{{ nexus_data_dir }}/nexus3"
     state: directory
-    mode: "0775"
+    owner: "{{ nexus_user }}"
+    group: "{{ nexus_user }}"
+    mode: "0755"
 
-# Allow the normal user to access it
-- name: Set directory ownership to nexus user
+# --------------------------------------------------
+# Prepare install directory
+# --------------------------------------------------
+- name: Create install directory
   become: true
   file:
-    path: "{{ nexus_data_dir }}"
-    owner: "{{ ansible_user }}"
-    group: "{{ ansible_user }}"
-    mode: "0775"
+    path: "{{ nexus_install_dir }}"
+    state: directory
+    mode: "0755"
 
-# Fix UID mapping for rootless container
-- name: Adjust ownership inside podman namespace for Nexus UID 200
-  command: podman unshare chown -R 200:200 "{{ nexus_data_dir }}"
+# --------------------------------------------------
+# Download Nexus
+# --------------------------------------------------
+- name: Download Nexus
+  become: true
+  get_url:
+    url: "{{ nexus_download_url }}"
+    dest: "/tmp/nexus.tar.gz"
+    timeout: 30
 
-- name: Pull Nexus image
-  containers.podman.podman_image:
-    name: "{{ nexus_image }}"
-    state: present
+# --------------------------------------------------
+# Extract Nexus (idempotent)
+# --------------------------------------------------
+- name: Extract Nexus
+  become: true
+  unarchive:
+    src: "/tmp/nexus.tar.gz"
+    dest: "{{ nexus_install_dir }}"
+    remote_src: yes
+    creates: "{{ nexus_install_dir }}/nexus-{{ nexus_version }}"
 
-- name: Run Nexus container
-  containers.podman.podman_container:
+# --------------------------------------------------
+# Symlink current
+# --------------------------------------------------
+- name: Create nexus symlink
+  become: true
+  file:
+    src: "{{ nexus_install_dir }}/nexus-{{ nexus_version }}"
+    dest: "{{ nexus_install_dir }}/current"
+    state: link
+    force: true
+
+# --------------------------------------------------
+# Configure JVM (nexus.vmoptions)
+# --------------------------------------------------
+- name: Configure Xms
+  become: true
+  lineinfile:
+    path: "{{ nexus_install_dir }}/current/bin/nexus.vmoptions"
+    regexp: "^-Xms"
+    line: "-Xms{{ nexus_java_opts.xms }}"
+
+- name: Configure Xmx
+  become: true
+  lineinfile:
+    path: "{{ nexus_install_dir }}/current/bin/nexus.vmoptions"
+    regexp: "^-Xmx"
+    line: "-Xmx{{ nexus_java_opts.xmx }}"
+
+- name: Configure MaxDirectMemory
+  become: true
+  lineinfile:
+    path: "{{ nexus_install_dir }}/current/bin/nexus.vmoptions"
+    regexp: "^-XX:MaxDirectMemorySize="
+    line: "-XX:MaxDirectMemorySize={{ nexus_java_opts.direct }}"
+
+- name: Ensure correct data directory
+  become: true
+  lineinfile:
+    path: "{{ nexus_install_dir }}/current/bin/nexus.vmoptions"
+    regexp: "^-Dkaraf.data="
+    line: "-Dkaraf.data={{ nexus_data_dir }}/nexus3"
+
+# --------------------------------------------------
+# Fix ownership
+# --------------------------------------------------
+- name: Ensure ownership
+  become: true
+  file:
+    path: "{{ item }}"
+    owner: "{{ nexus_user }}"
+    group: "{{ nexus_user }}"
+    recurse: yes
+  loop:
+    - "{{ nexus_install_dir }}"
+    - "{{ nexus_data_dir }}"
+
+# --------------------------------------------------
+# Create systemd service
+# --------------------------------------------------
+- name: Create systemd service
+  become: true
+  copy:
+    dest: /etc/systemd/system/nexus.service
+    content: |
+      [Unit]
+      Description=Nexus Repository Manager
+      After=network.target
+
+      [Service]
+      Type=forking
+      LimitNOFILE=65536
+      User={{ nexus_user }}
+      Group={{ nexus_user }}
+      ExecStart={{ nexus_install_dir }}/current/bin/nexus start
+      ExecStop={{ nexus_install_dir }}/current/bin/nexus stop
+      Restart=on-abort
+
+      [Install]
+      WantedBy=multi-user.target
+  notify: restart nexus
+
+# --------------------------------------------------
+# Reload + start
+# --------------------------------------------------
+- name: Reload systemd
+  become: true
+  systemd:
+    daemon_reload: yes
+
+- name: Enable Nexus
+  become: true
+  systemd:
     name: nexus
-    image: "{{ nexus_image }}"
+    enabled: yes
+
+- name: Start Nexus
+  become: true
+  systemd:
+    name: nexus
     state: started
-    restart_policy: always
-    publish:
-      - "{{ nexus_http_port }}:8081"
-    volume:
-      - "{{ nexus_data_dir }}:/nexus-data"
-    env: >-
-      {{
-        (nexus_java_opts is defined)
-        | ternary({'INSTALL4J_ADD_VM_PARAMS': nexus_java_opts}, {})
-      }}
-# Generate systemd service
-- name: Generate user systemd unit
-  containers.podman.podman_generate_systemd:
-    name: nexus
-    dest: "{{ ansible_env.HOME }}/.config/systemd/user"
-    restart_policy: always
-    new: true
-
-- name: Reload user systemd
-  command: systemctl --user daemon-reload
-
-- name: Enable Nexus service
-  command: systemctl --user enable container-nexus.service
-
-- name: Start Nexus service
-  command: systemctl --user start container-nexus.service

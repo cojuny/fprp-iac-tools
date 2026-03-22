@@ -1,5 +1,6 @@
 ---
 - name: restart nexus
-  containers.podman.podman_container:
-    name: "{{ nexus_container_name }}"
+  become: true
+  systemd:
+    name: nexus
     state: restarted
