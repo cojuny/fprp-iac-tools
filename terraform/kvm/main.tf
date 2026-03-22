@@ -44,6 +44,12 @@ locals {
       vcpu   = 2
       disk   = 20
     }
+    nexus = {
+      ip     = "192.168.100.203"
+      memory = 4096
+      vcpu   = 2
+      disk   = 50
+    }
   }
 }
 
