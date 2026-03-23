@@ -1,0 +1,47 @@
+- name: Install nginx
+  apt:
+    name: nginx
+    state: present
+    update_cache: yes
+
+- name: Create cert directory
+  file:
+    path: /etc/nginx/certs
+    state: directory
+    mode: '0755'
+
+- name: Copy certificate
+  copy:
+    src: /home/daniel/certs/lab.internal.crt
+    dest: /etc/nginx/certs/lab.internal.crt
+    mode: '0644'
+
+- name: Copy private key
+  copy:
+    src: /home/daniel/certs/lab.internal.key
+    dest: /etc/nginx/certs/lab.internal.key
+    mode: '0600'
+
+- name: Deploy nginx.conf
+  copy:
+    src: nginx.conf
+    dest: /etc/nginx/nginx.conf
+    mode: '0644'
+  notify: restart nginx
+
+- name: Deploy nginx vhost configs
+  copy:
+    src: conf.d/
+    dest: /etc/nginx/conf.d/
+    mode: '0644'
+  notify: restart nginx
+
+- name: Ensure nginx is enabled and running
+  service:
+    name: nginx
+    enabled: yes
+    state: started
+
+- name: Validate nginx config
+  command: nginx -t
+  changed_when: false

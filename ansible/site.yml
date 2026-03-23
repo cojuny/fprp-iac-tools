@@ -1,4 +1,10 @@
 ---
+- name: Configure NGINX Reverse Proxy Server
+  hosts: reverse-proxy
+  become: true
+  roles:
+    - reverse-proxy
+
 - name: Configure MariaDB Server
   hosts: mariadb
   roles:
