@@ -38,17 +38,23 @@ locals {
       vcpu   = 1
       disk   = 20
     }
-    kafka = {
-      ip     = "192.168.100.202"
-      memory = 2048
-      vcpu   = 2
-      disk   = 20
-    }
     nexus = {
       ip     = "192.168.100.203"
       memory = 4096
       vcpu   = 2
       disk   = 50
+    }
+    k8s-control-plane = {
+      ip     = "192.168.100.206"
+      memory = 4096
+      vcpu   = 2
+      disk   = 30
+    }
+    k8s-worker-node-1 = {
+      ip     = "192.168.100.207"
+      memory = 16384
+      vcpu   = 4
+      disk   = 100
     }
   }
 }
