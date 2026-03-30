@@ -1,6 +1,0 @@
-mariadb_root_password: "1q2w3e4r"
-mariadb_database: "appdb"
-mariadb_user: "default_user"
-mariadb_password: "1q2w3e4r"
-mariadb_data_dir: "/opt/mariadb-data"
-mariadb_port: 3306

@@ -1,0 +1,2 @@
+mariadb_data_dir: "/opt/mariadb-data"
+mariadb_port: 3306

@@ -28,8 +28,6 @@
     restart_policy: always
     env:
       MYSQL_ROOT_PASSWORD: "{{ mariadb_root_password }}"
-      MYSQL_USER: "{{ mariadb_user }}"
-      MYSQL_PASSWORD: "{{ mariadb_password }}"
     volume:
       - "{{ mariadb_data_dir }}:/var/lib/mysql:Z"
     publish:
