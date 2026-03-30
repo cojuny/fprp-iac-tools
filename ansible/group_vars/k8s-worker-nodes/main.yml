@@ -1,0 +1,3 @@
+kubernetes_version: "1.29"
+containerd_config_path: /etc/containerd/config.toml
+control_plane_ip: "192.168.100.206"

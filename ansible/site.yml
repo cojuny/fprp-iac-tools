@@ -14,3 +14,15 @@
   hosts: nexus
   roles:
     - nexus
+
+- name: Configure Kubernetes Control Plane
+  hosts: k8s-control-plane
+  become: true
+  roles:
+    - k8s-control-plane
+
+- name: Configure Kubernetes Worker Nodes
+  hosts: k8s-worker-nodes
+  become: true
+  roles:
+    - k8s-worker-nodes

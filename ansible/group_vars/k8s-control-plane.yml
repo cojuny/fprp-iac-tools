@@ -1,0 +1,5 @@
+kubernetes_version: "1.29"
+pod_network_cidr: "192.168.0.0/16"
+
+containerd_config_path: /etc/containerd/config.toml
+kubeconfig_path: /home/daniel/.kube/config
