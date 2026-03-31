@@ -1,9 +1,16 @@
 ---
-- name: Install Podman
+- name: Install Docker
   apt:
-    name: podman
+    name: docker.io
     state: present
     update_cache: true
+  become: true
+
+- name: Ensure Docker service is running
+  service:
+    name: docker
+    state: started
+    enabled: true
   become: true
 
 - name: Ensure data directory exists
@@ -16,35 +23,23 @@
   become: true
 
 - name: Pull MariaDB image
-  containers.podman.podman_image:
+  community.docker.docker_image:
     name: "{{ mariadb_image }}"
-    state: present
+    source: pull
+  become: true
 
 - name: Run MariaDB container
-  containers.podman.podman_container:
+  community.docker.docker_container:
     name: mariadb
     image: "{{ mariadb_image }}"
     state: started
     restart_policy: always
     env:
       MYSQL_ROOT_PASSWORD: "{{ mariadb_root_password }}"
-    volume:
-      - "{{ mariadb_data_dir }}:/var/lib/mysql:Z"
-    publish:
+      MYSQL_USER: "{{ mariadb_user }}"
+      MYSQL_PASSWORD: "{{ mariadb_user_password }}"
+    volumes:
+      - "{{ mariadb_data_dir }}:/var/lib/mysql"
+    ports:
       - "{{ mariadb_port }}:3306"
-
-- name: Generate user systemd unit
-  containers.podman.podman_generate_systemd:
-    name: mariadb
-    dest: "{{ ansible_env.HOME }}/.config/systemd/user"
-    restart_policy: always
-    new: true
-
-- name: Reload user systemd
-  command: systemctl --user daemon-reload
-
-- name: Enable user service
-  command: systemctl --user enable container-mariadb.service
-
-- name: Start user service
-  command: systemctl --user start container-mariadb.service
+  become: true
