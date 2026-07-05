@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: storage-test
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: storage-test-pvc
+  namespace: storage-test
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: storage-test
+  namespace: storage-test
+spec:
+  securityContext:
+    fsGroup: 2000
+  containers:
+    - name: busybox
+      image: busybox:1.36
+      command:
+        - sh
+        - -c
+      args:
+        - |
+          echo "Hello Kubernetes" > /data/hello.txt
+          sleep 3600
+      volumeMounts:
+        - name: storage
+          mountPath: /data
+  volumes:
+    - name: storage
+      persistentVolumeClaim:
+        claimName: storage-test-pvc
